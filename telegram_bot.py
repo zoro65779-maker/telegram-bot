@@ -6,8 +6,12 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
+import json
+import os
 
-BOT_TOKEN = "8285582675:AAEzWrdHGpEuchhT_G5njDiSJR1OdCmqf1Y"
+import os
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
 
 QUESTIONS = [
     {
@@ -36,10 +40,15 @@ user_data = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    user_data[user_id] = {
-        "index": 0,
-        "score": 0
-    }
+    completed_users = load_completed_users()
+
+    if user_id in completed_users:
+        await update.message.reply_text(
+            "🚫 You have already attempted this quiz.\nYou cannot retry."
+        )
+        return
+
+    user_data[user_id] = {"index": 0, "score": 0}
     await send_question(update, user_id)
 
 
@@ -74,6 +83,7 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         # Quiz finished
         score = user_data[user_id]["score"]
+        save_completed_user(user_id)
 
         if score >= PASS_MARK:
             await update.message.reply_text(
@@ -99,3 +109,17 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+DATA_FILE = "completed_users.json"
+
+def load_completed_users():
+    if not os.path.exists(DATA_FILE):
+        return set()
+    with open(DATA_FILE, "r") as f:
+        return set(json.load(f))
+
+def save_completed_user(user_id):
+    users = load_completed_users()
+    users.add(user_id)
+    with open(DATA_FILE, "w") as f:
+        json.dump(list(users), f)
